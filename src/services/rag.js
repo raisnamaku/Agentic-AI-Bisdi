@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { generateEmbedding } from './gemini';
+import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 
 /**
  * Split text into chunks with overlap
@@ -22,19 +23,28 @@ export function chunkText(text, chunkSize = 1000, overlap = 200) {
  * Store document chunks with embeddings in Supabase
  */
 export async function storeDocumentChunks(documentId, text, metadata = {}) {
-  const chunks = chunkText(text);
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize: 1000,
+    chunkOverlap: 200,
+  });
+
+  const chunks = await splitter.createDocuments([text]);
   const results = [];
 
   for (let i = 0; i < chunks.length; i++) {
     try {
-      const embedding = await generateEmbedding(chunks[i]);
+      const chunkContent = chunks[i].pageContent;
+      // LangChain may produce empty chunks, skip them
+      if (!chunkContent.trim()) continue;
+
+      const embedding = await generateEmbedding(chunkContent);
       
       const { data, error } = await supabase
         .from('document_chunks')
         .insert({
           document_id: documentId,
           chunk_index: i,
-          content: chunks[i],
+          content: chunkContent,
           embedding: embedding,
           metadata: metadata,
         })

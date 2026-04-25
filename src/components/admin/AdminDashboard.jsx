@@ -3,10 +3,8 @@ import { Upload, FileText, Trash2, FolderOpen, FileUp, Database } from 'lucide-r
 import Sidebar from '../common/Sidebar';
 import { supabase } from '../../services/supabase';
 import { storeDocumentChunks } from '../../services/rag';
-import * as pdfjsLib from 'pdfjs-dist';
+import { WebPDFLoader } from "@langchain/community/document_loaders/web/pdf";
 
-// Setup PDF worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 
 export default function AdminDashboard() {
@@ -34,16 +32,9 @@ export default function AdminDashboard() {
 
   const readFileContent = async (file) => {
     if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let fullText = '';
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(' ');
-        fullText += pageText + '\n';
-      }
-      return fullText;
+      const loader = new WebPDFLoader(file, { parsedItemSeparator: " " });
+      const docs = await loader.load();
+      return docs.map(doc => doc.pageContent).join('\n\n');
     } else {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
